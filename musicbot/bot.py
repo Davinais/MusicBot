@@ -396,18 +396,15 @@ class MusicBot(discord.Client):
                 newmsg = "{0}，您的歌開始播放囉！".format(entry.meta['author'].mention)
             else:
                 newmsg = ''
-            np_embed = discord.Embed(description="""{song_name}
-
-點歌者：{requestor}""".format(
-                song_name = entry.title, 
-                requestor = entry.meta['author'].name
-            )
+            np_embed = discord.Embed(
+                title = entry.title
             )
             np_embed.set_author(
                 name = "{channel} - 現正播放♪".format(channel=player.voice_client.channel.name),
                 url = entry.url,
                 icon_url = self.user.avatar_url
             )
+            np_embed.set_footer(text= "來自 {requestor} 的點播".format(requestor=entry.meta['author'].name))
 
             if self.server_specific_data[channel.server]['last_np_msg']:
                 self.server_specific_data[channel.server]['last_np_msg'] = await self.safe_edit_message(last_np_msg, newmsg, embed = np_embed, send_if_fail=True)
@@ -1284,36 +1281,35 @@ class MusicBot(discord.Client):
             song_progress = str(timedelta(seconds=player.progress)).lstrip('0').lstrip(':')
             song_total = str(timedelta(seconds=player.current_entry.duration)).lstrip('0').lstrip(':')
             prog_str = ('`[{progress}/{total}]`').format(progress=song_progress, total=song_total)
+            prog_bar_str = ''
 
+            prog_percent = 0.0
+            if player.current_entry.duration > 0:
+                prog_percent = player.progress / player.current_entry.duration
+            #This is from pkajan, thanks for its help
+            """
+            This for loop adds  empty or full squares to prog_bar_str (it could look like
+            ■■■■■■■■■■□□□□□□□□□□□□□□□□□□□□□□□□□□□□□□
+            if for example the song has already played 25% of the songs duration
+            """
+            bar_length = 30
+            for i in range(bar_length):
+                if (prog_percent < 1 / bar_length * i):
+                    prog_bar_str += '□'
+                else:
+                    prog_bar_str += '■'
+            
+            np_embed = discord.Embed(
+                title = player.current_entry.title,
+                description = " \n" + prog_bar_str + "\n" + prog_str
+            )
+            np_embed.set_author(
+                name = "現正播放♪",
+                url = player.current_entry.url,
+                icon_url = self.user.avatar_url
+            )
             if player.current_entry.meta.get('channel', False) and player.current_entry.meta.get('author', False):
-                np_embed = discord.Embed(description="""{song_name}
-
-{progstr}
-
-點歌者： {requestor}""".format(
-                    song_name = player.current_entry.title, 
-                    progstr = prog_str, 
-                    requestor = player.current_entry.meta['author'].name
-                )
-                )
-                np_embed.set_author(
-                    name = "現正播放♪",
-                    url = player.current_entry.url,
-                    icon_url = self.user.avatar_url
-                )
-            else:
-                np_embed = discord.Embed(description="""{song_name}
-
-{progstr}""".format(
-                    song_name = player.current_entry.title, 
-                    progstr = prog_str
-                )
-                )
-                np_embed.set_author(
-                    name = "現正播放♪",
-                    url = player.current_entry.url,
-                    icon_url = self.user.avatar_url
-                )
+                np_embed.set_footer(text="來自 {requestor} 的點播".format(requestor = player.current_entry.meta['author'].name))
 
             self.server_specific_data[server]['last_np_msg'] = await self.safe_send_message(channel, embed=np_embed)
             await self._manual_delete_check(message)
