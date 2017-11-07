@@ -461,7 +461,7 @@ class MusicBot(discord.Client):
         if self.user.bot:
             activeplayers = sum(1 for p in self.players.values() if p.is_playing)
             if activeplayers > 1:
-                game = discord.Game(name="music on %s servers" % activeplayers)
+                game = discord.Game(type=0, name="music on %s servers" % activeplayers)
                 entry = None
 
             elif activeplayers == 1:
@@ -472,9 +472,9 @@ class MusicBot(discord.Client):
             prefix = u'\u275A\u275A ' if is_paused else ''
 
             name = u'{}{}'.format(prefix, entry.title)[:128]
-            game = discord.Game(name=name)
+            game = discord.Game(type=0, name=name)
 
-        await self.change_status(game)
+        await self.change_presence(game=game)
 
 
     async def safe_send_message(self, dest, content=None, *, tts=False, embed=None, expire_in=0, also_delete=None, quiet=False):
