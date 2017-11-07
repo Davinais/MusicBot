@@ -404,6 +404,7 @@ class MusicBot(discord.Client):
                 url = entry.url,
                 icon_url = self.user.avatar_url
             )
+            np_embed.set_thumbnail(url=entry.thumbnail_url)
             np_embed.set_footer(text= "來自 {requestor} 的點播".format(requestor=entry.meta['author'].name))
 
             if self.server_specific_data[channel.server]['last_np_msg']:
@@ -1308,6 +1309,7 @@ class MusicBot(discord.Client):
                 url = player.current_entry.url,
                 icon_url = self.user.avatar_url
             )
+            np_embed.set_thumbnail(url=player.current_entry.thumbnail_url)
             if player.current_entry.meta.get('channel', False) and player.current_entry.meta.get('author', False):
                 np_embed.set_footer(text="來自 {requestor} 的點播".format(requestor = player.current_entry.meta['author'].name))
 

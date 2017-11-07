@@ -72,7 +72,7 @@ class BasePlaylistEntry:
 
 
 class URLPlaylistEntry(BasePlaylistEntry):
-    def __init__(self, playlist, url, title, duration=0, expected_filename=None, **meta):
+    def __init__(self, playlist, url, title, duration=0, expected_filename=None, thumbnail_url=None, **meta):
         super().__init__()
 
         self.playlist = playlist
@@ -80,6 +80,7 @@ class URLPlaylistEntry(BasePlaylistEntry):
         self.title = title
         self.duration = duration
         self.expected_filename = expected_filename
+        self.thumbnail_url = thumbnail_url
         self.meta = meta
 
         self.download_folder = self.playlist.downloader.download_folder
@@ -94,6 +95,7 @@ class URLPlaylistEntry(BasePlaylistEntry):
         duration = data['duration']
         downloaded = data['downloaded']
         filename = data['filename'] if downloaded else None
+        thumbnail_url = data['thumbnail_url']
         meta = {}
 
         # TODO: Better [name] fallbacks
@@ -115,6 +117,7 @@ class URLPlaylistEntry(BasePlaylistEntry):
             'duration': self.duration,
             'downloaded': self.is_downloaded,
             'filename': self.filename,
+            'thumbnail_url': self.thumbnail_url,
             'meta': {
                 i: {
                     'type': self.meta[i].__class__.__name__,

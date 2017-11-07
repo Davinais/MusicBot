@@ -79,6 +79,7 @@ class Playlist(EventEmitter):
             info.get('title', 'Untitled'),
             info.get('duration', 0) or 0,
             self.downloader.ytdl.prepare_filename(info),
+            info.get('thumbnail'),
             **meta
         )
         self._add_entry(entry)
