@@ -393,16 +393,26 @@ class MusicBot(discord.Client):
                     break  # This is probably redundant
 
             if self.config.now_playing_mentions:
-                newmsg = '%s - your song **%s** is now playing in %s!' % (
-                    entry.meta['author'].mention, entry.title, player.voice_client.channel.name)
+                newmsg = "{0}，您的歌開始播放囉！".format(entry.meta['author'].mention)
             else:
-                newmsg = 'Now playing in %s: **%s**' % (
-                    player.voice_client.channel.name, entry.title)
+                newmsg = ''
+            np_embed = discord.Embed(description="""{song_name}
+
+點歌者：{requestor}""".format(
+                song_name = entry.title, 
+                requestor = entry.meta['author'].name
+            )
+            )
+            np_embed.set_author(
+                name = "{channel} - 現正播放♪".format(channel=player.voice_client.channel.name),
+                url = entry.url,
+                icon_url = self.user.avatar_url
+            )
 
             if self.server_specific_data[channel.server]['last_np_msg']:
-                self.server_specific_data[channel.server]['last_np_msg'] = await self.safe_edit_message(last_np_msg, newmsg, send_if_fail=True)
+                self.server_specific_data[channel.server]['last_np_msg'] = await self.safe_edit_message(last_np_msg, newmsg, embed = np_embed, send_if_fail=True)
             else:
-                self.server_specific_data[channel.server]['last_np_msg'] = await self.safe_send_message(channel, newmsg)
+                self.server_specific_data[channel.server]['last_np_msg'] = await self.safe_send_message(channel, newmsg, embed = np_embed)
 
     async def on_player_resume(self, entry, **_):
         await self.update_now_playing(entry)
@@ -467,10 +477,10 @@ class MusicBot(discord.Client):
         await self.change_status(game)
 
 
-    async def safe_send_message(self, dest, content, *, tts=False, expire_in=0, also_delete=None, quiet=False):
+    async def safe_send_message(self, dest, content=None, *, tts=False, embed=None, expire_in=0, also_delete=None, quiet=False):
         msg = None
         try:
-            msg = await self.send_message(dest, content, tts=tts)
+            msg = await self.send_message(dest, content, tts=tts, embed=embed)
 
             if msg and expire_in:
                 asyncio.ensure_future(self._wait_delete_msg(msg, expire_in))
@@ -1273,15 +1283,39 @@ class MusicBot(discord.Client):
 
             song_progress = str(timedelta(seconds=player.progress)).lstrip('0').lstrip(':')
             song_total = str(timedelta(seconds=player.current_entry.duration)).lstrip('0').lstrip(':')
-            prog_str = '`[%s/%s]`' % (song_progress, song_total)
+            prog_str = ('`[{progress}/{total}]`').format(progress=song_progress, total=song_total)
 
             if player.current_entry.meta.get('channel', False) and player.current_entry.meta.get('author', False):
-                np_text = "Now Playing: **%s** added by **%s** %s\n" % (
-                    player.current_entry.title, player.current_entry.meta['author'].name, prog_str)
-            else:
-                np_text = "Now Playing: **%s** %s\n" % (player.current_entry.title, prog_str)
+                np_embed = discord.Embed(description="""{song_name}
 
-            self.server_specific_data[server]['last_np_msg'] = await self.safe_send_message(channel, np_text)
+{progstr}
+
+點歌者： {requestor}""".format(
+                    song_name = player.current_entry.title, 
+                    progstr = prog_str, 
+                    requestor = player.current_entry.meta['author'].name
+                )
+                )
+                np_embed.set_author(
+                    name = "現正播放♪",
+                    url = player.current_entry.url,
+                    icon_url = self.user.avatar_url
+                )
+            else:
+                np_embed = discord.Embed(description="""{song_name}
+
+{progstr}""".format(
+                    song_name = player.current_entry.title, 
+                    progstr = prog_str
+                )
+                )
+                np_embed.set_author(
+                    name = "現正播放♪",
+                    url = player.current_entry.url,
+                    icon_url = self.user.avatar_url
+                )
+
+            self.server_specific_data[server]['last_np_msg'] = await self.safe_send_message(channel, embed=np_embed)
             await self._manual_delete_check(message)
         else:
             return Response(
