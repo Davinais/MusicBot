@@ -405,7 +405,10 @@ class MusicBot(discord.Client):
                 icon_url = self.user.avatar_url
             )
             np_embed.set_thumbnail(url=entry.thumbnail_url)
-            np_embed.set_footer(text= "來自 {requestor} 的點播".format(requestor=entry.meta['author'].name))
+            np_embed.set_footer(
+                text = "來自 {requester} 的點播".format(requester=entry.meta['author'].name),
+                icon_url = player.current_entry.meta['author'].avatar_url
+            )
 
             if self.server_specific_data[channel.server]['last_np_msg']:
                 self.server_specific_data[channel.server]['last_np_msg'] = await self.safe_edit_message(last_np_msg, newmsg, embed = np_embed, send_if_fail=True)
@@ -1311,7 +1314,10 @@ class MusicBot(discord.Client):
             )
             np_embed.set_thumbnail(url=player.current_entry.thumbnail_url)
             if player.current_entry.meta.get('channel', False) and player.current_entry.meta.get('author', False):
-                np_embed.set_footer(text="來自 {requestor} 的點播".format(requestor = player.current_entry.meta['author'].name))
+                np_embed.set_footer(
+                    text = "來自 {requester} 的點播".format(requester = player.current_entry.meta['author'].name),
+                    icon_url = player.current_entry.meta['author'].avatar_url
+                )
 
             self.server_specific_data[server]['last_np_msg'] = await self.safe_send_message(channel, embed=np_embed)
             await self._manual_delete_check(message)
