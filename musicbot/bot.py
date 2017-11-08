@@ -58,9 +58,10 @@ class SkipState:
 
 
 class Response:
-    def __init__(self, content, reply=False, delete_after=0):
+    def __init__(self, content=None, embed=None, reply=False, delete_after=0):
         self.content = content
         self.reply = reply
+        self.embed = embed
         self.delete_after = delete_after
 
 
@@ -1003,8 +1004,15 @@ class MusicBot(discord.Client):
                     expire_in=30
                 )
 
-            reply_text = "Enqueued **%s** songs to be played. Position in queue: %s"
-            btext = str(listlen - drop_count)
+            reply_embed = discord.Embed(title = "點播播放清單")
+            reply_embed.set_author(
+                name = "加入播放佇列",
+                icon_url = author.avatar_url
+            )
+            reply_embed.add_field(
+                name = "歌曲數量",
+                value = str(listlen - drop_count)
+            )
 
         else:
             if permissions.max_song_length and info.get('duration', 0) > permissions.max_song_length:
@@ -1025,25 +1033,45 @@ class MusicBot(discord.Client):
                     print("[Info] Using \"%s\" instead" % e.use_url)
 
                 return await self.cmd_play(player, channel, author, permissions, leftover_args, e.use_url)
-
-            reply_text = "Enqueued **%s** to be played. Position in queue: %s"
-            btext = entry.title
+            
+            reply_embed = discord.Embed()
+            reply_embed.set_author(
+                name = "加入播放佇列",
+                icon_url = author.avatar_url
+            )
+            reply_embed.add_field(
+                name = "曲名",
+                value = entry.title,
+                inline = False
+            )
+            reply_embed.set_thumbnail(url = entry.thumbnail_url)
+            song_duration = str(timedelta(seconds=entry.duration)).lstrip('0').lstrip(':')
+            reply_embed.add_field(
+                name = "歌曲長度",
+                value = song_duration
+            )
 
         if position == 1 and player.is_stopped:
-            position = 'Up next!'
-            reply_text %= (btext, position)
+            reply_embed.add_field(
+                name = "位置",
+                value = "馬上！"
+            )
 
         else:
+            reply_embed.add_field(
+                name = "位置",
+                value = str(position)
+            )
             try:
                 time_until = await player.playlist.estimate_time_until(position, player)
-                reply_text += ' - estimated time until playing: %s'
+                reply_embed.add_field(
+                    name = "預估播放時間",
+                    value = time_until
+                )
             except:
                 traceback.print_exc()
-                time_until = ''
 
-            reply_text %= (btext, position, time_until)
-
-        return Response(reply_text, delete_after=30)
+        return Response(embed=reply_embed, delete_after=30)
 
     async def _cmd_play_playlist_async(self, player, channel, author, permissions, playlist_url, extractor_type):
         """
@@ -1969,11 +1997,13 @@ class MusicBot(discord.Client):
             response = await handler(**handler_kwargs)
             if response and isinstance(response, Response):
                 content = response.content
+                embed = response.embed
                 if response.reply:
                     content = '%s, %s' % (message.author.mention, content)
 
                 sentmsg = await self.safe_send_message(
                     message.channel, content,
+                    embed=embed,
                     expire_in=response.delete_after if self.config.delete_messages else 0,
                     also_delete=message if self.config.delete_invoking else None
                 )
