@@ -1321,15 +1321,15 @@ class MusicBot(discord.Client):
             #This is from pkajan, thanks for its help
             """
             This for loop adds  empty or full squares to prog_bar_str (it could look like
-            ■■■■■■■■■■□□□□□□□□□□□□□□□□□□□□□□□□□□□□□□
+            ■■■■■■■■■■□□□□□□□□□□□□□□□□□□□□□□□□□□□□□□  ⬛⬜ █▁
             if for example the song has already played 25% of the songs duration
             """
             bar_length = 30
             for i in range(bar_length):
                 if (prog_percent < 1 / bar_length * i):
-                    prog_bar_str += '□'
+                    prog_bar_str += '▁'
                 else:
-                    prog_bar_str += '■'
+                    prog_bar_str += '█'
             
             np_embed = discord.Embed(
                 title = player.current_entry.title,
