@@ -1675,6 +1675,17 @@ class MusicBot(discord.Client):
 
         return Response('Cleaned up {} message{}.'.format(deleted, 's' * bool(deleted)), delete_after=15)
 
+    async def cmd_loop(self, channel, player):
+        """
+        Usage:
+            {command_prefix}loop
+
+        Toggle if the song would be loop or not
+        """
+        player.song_loop = not player.song_loop
+        status = '**Enabled!**' if (player.song_loop) else '**Disabled!**'
+        return Response(':repeat_one: {0}'.format(status))
+
     async def cmd_pldump(self, channel, song_url):
         """
         Usage:

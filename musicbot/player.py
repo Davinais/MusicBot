@@ -8,6 +8,8 @@ from array import array
 from collections import deque
 from shutil import get_terminal_size
 
+from musicbot.entry import BasePlaylistEntry
+
 from .lib.event_emitter import EventEmitter
 
 
@@ -100,6 +102,7 @@ class MusicPlayer(EventEmitter):
         self._current_player = None
         self._current_entry = None
         self.state = MusicPlayerState.STOPPED
+        self._song_loop = False
 
         self.loop.create_task(self.websocket_check())
 
@@ -112,6 +115,14 @@ class MusicPlayer(EventEmitter):
         self._volume = value
         if self._current_player:
             self._current_player.buff.volume = value
+
+    @property
+    def song_loop(self):
+        return self._song_loop
+    
+    @song_loop.setter
+    def song_loop(self, value):
+        self._song_loop = value
 
     def on_entry_added(self, playlist, entry):
         if self.is_stopped:
@@ -168,7 +179,8 @@ class MusicPlayer(EventEmitter):
             self._current_player.after = None
             self._kill_current_player()
 
-        self._current_entry = None
+        if not self._song_loop:
+            self._current_entry = None
 
         if not self.is_stopped and not self.is_dead:
             self.play(_continue=True)
@@ -231,7 +243,10 @@ class MusicPlayer(EventEmitter):
         with await self._play_lock:
             if self.is_stopped or _continue:
                 try:
-                    entry = await self.playlist.get_next_entry()
+                    if self._song_loop:
+                        entry = await self._current_entry.get_ready_future()
+                    else:
+                        entry = await self.playlist.get_next_entry()
 
                 except Exception as e:
                     print("Failed to get entry.")

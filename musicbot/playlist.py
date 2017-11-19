@@ -235,7 +235,7 @@ class Playlist(EventEmitter):
         """
         if not self.entries:
             return None
-
+        
         entry = self.entries.popleft()
 
         if predownload_next:
