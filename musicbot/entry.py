@@ -72,7 +72,7 @@ class BasePlaylistEntry:
 
 
 class URLPlaylistEntry(BasePlaylistEntry):
-    def __init__(self, playlist, url, title, duration=0, expected_filename=None, thumbnail_url=None, **meta):
+    def __init__(self, playlist, url, title, duration=0, expected_filename=None, thumbnail_url=None, local=False, **meta):
         super().__init__()
 
         self.playlist = playlist
@@ -81,6 +81,7 @@ class URLPlaylistEntry(BasePlaylistEntry):
         self.duration = duration
         self.expected_filename = expected_filename
         self.thumbnail_url = thumbnail_url
+        self.local = local
         self.meta = meta
 
         self.download_folder = self.playlist.downloader.download_folder
@@ -131,6 +132,11 @@ class URLPlaylistEntry(BasePlaylistEntry):
 
     # noinspection PyTypeChecker
     async def _download(self):
+        if self.local:
+            self.filename = self.expected_filename
+            print("[Local] Found:", self.url)
+            return
+    
         if self._is_downloading:
             return
 
@@ -210,6 +216,9 @@ class URLPlaylistEntry(BasePlaylistEntry):
 
     # noinspection PyShadowingBuiltins
     async def _really_download(self, *, hash=False):
+        if self.local:
+            return
+    
         print("[Download] Started:", self.url)
 
         try:

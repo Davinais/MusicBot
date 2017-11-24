@@ -1,14 +1,28 @@
 import datetime
 import traceback
+import subprocess
 from collections import deque
 from itertools import islice
 from random import shuffle
+from os.path import basename
 
 from .utils import get_header
 from .entry import URLPlaylistEntry
 from .exceptions import ExtractionError, WrongEntryTypeError
 from .lib.event_emitter import EventEmitter
 
+async def local_info(url):
+    getinfo = subprocess.Popen(
+        "ffprobe -i {0} -show_entries format=duration -show_entries format_tags=title -v quiet -of csv='p=0'".format(url), 
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        shell=True
+    )
+    ot_result = getinfo.communicate()
+    info = ot_result[0].decode('utf-8').rstrip().split(',', 1)
+    if len(info) == 1:
+        info.append(basename(url))
+    return info
 
 class Playlist(EventEmitter):
     """
@@ -31,7 +45,7 @@ class Playlist(EventEmitter):
     def clear(self):
         self.entries.clear()
 
-    async def add_entry(self, song_url, **meta):
+    async def add_entry(self, song_url, local=False, **meta):
         """
             Validates and adds a song_url to be played. This does not start the download of the song.
 
@@ -41,47 +55,61 @@ class Playlist(EventEmitter):
             :param meta: Any additional metadata to add to the playlist entry.
         """
 
-        try:
-            info = await self.downloader.extract_info(self.loop, song_url, download=False)
-        except Exception as e:
-            raise ExtractionError('Could not extract information from {}\n\n{}'.format(song_url, e))
-
-        if not info:
-            raise ExtractionError('Could not extract information from %s' % song_url)
-
-        # TODO: Sort out what happens next when this happens
-        if info.get('_type', None) == 'playlist':
-            raise WrongEntryTypeError("This is a playlist.", True, info.get('webpage_url', None) or info.get('url', None))
-
-        if info['extractor'] in ['generic', 'Dropbox']:
+        if not local:
             try:
-                # unfortunately this is literally broken
-                # https://github.com/KeepSafe/aiohttp/issues/758
-                # https://github.com/KeepSafe/aiohttp/issues/852
-                content_type = await get_header(self.bot.aiosession, info['url'], 'CONTENT-TYPE')
-                print("Got content type", content_type)
-
+                info = await self.downloader.extract_info(self.loop, song_url, download=False)
             except Exception as e:
-                print("[Warning] Failed to get content type for url %s (%s)" % (song_url, e))
-                content_type = None
+                raise ExtractionError('Could not extract information from {}\n\n{}'.format(song_url, e))
 
-            if content_type:
-                if content_type.startswith(('application/', 'image/')):
-                    if '/ogg' not in content_type:  # How does a server say `application/ogg` what the actual fuck
-                        raise ExtractionError("Invalid content type \"%s\" for url %s" % (content_type, song_url))
+            if not info:
+                raise ExtractionError('Could not extract information from %s' % song_url)
 
-                elif not content_type.startswith(('audio/', 'video/')):
-                    print("[Warning] Questionable content type \"%s\" for url %s" % (content_type, song_url))
+            # TODO: Sort out what happens next when this happens
+            if info.get('_type', None) == 'playlist':
+                raise WrongEntryTypeError("This is a playlist.", True, info.get('webpage_url', None) or info.get('url', None))
 
-        entry = URLPlaylistEntry(
-            self,
-            song_url,
-            info.get('title', 'Untitled'),
-            info.get('duration', 0) or 0,
-            self.downloader.ytdl.prepare_filename(info),
-            info.get('thumbnail'),
-            **meta
-        )
+            if info['extractor'] in ['generic', 'Dropbox']:
+                try:
+                    # unfortunately this is literally broken
+                    # https://github.com/KeepSafe/aiohttp/issues/758
+                    # https://github.com/KeepSafe/aiohttp/issues/852
+                    content_type = await get_header(self.bot.aiosession, info['url'], 'CONTENT-TYPE')
+                    print("Got content type", content_type)
+
+                except Exception as e:
+                    print("[Warning] Failed to get content type for url %s (%s)" % (song_url, e))
+                    content_type = None
+
+                if content_type:
+                    if content_type.startswith(('application/', 'image/')):
+                        if '/ogg' not in content_type:  # How does a server say `application/ogg` what the actual fuck
+                            raise ExtractionError("Invalid content type \"%s\" for url %s" % (content_type, song_url))
+
+                    elif not content_type.startswith(('audio/', 'video/')):
+                        print("[Warning] Questionable content type \"%s\" for url %s" % (content_type, song_url))
+
+            entry = URLPlaylistEntry(
+                self,
+                song_url,
+                info.get('title', 'Untitled'),
+                info.get('duration', 0) or 0,
+                self.downloader.ytdl.prepare_filename(info),
+                info.get('thumbnail'),
+                local,
+                **meta
+            )
+        else:
+            info = await local_info(song_url)
+            entry = URLPlaylistEntry(
+                self,
+                song_url,
+                info[1],
+                round(float(info[0])),
+                song_url.strip("'\""),
+                None,
+                local,
+                **meta
+            )
         self._add_entry(entry)
         return entry, len(self.entries)
 

@@ -402,10 +402,11 @@ class MusicBot(discord.Client):
             )
             np_embed.set_author(
                 name = "{channel} - 現正播放♪".format(channel=player.voice_client.channel.name),
-                url = entry.url,
+                url = entry.url if not entry.local else discord.Embed.Empty,
                 icon_url = self.user.avatar_url
             )
-            np_embed.set_thumbnail(url=entry.thumbnail_url)
+            if entry.thumbnail_url:
+                np_embed.set_thumbnail(url=entry.thumbnail_url)
             np_embed.set_footer(
                 text = "來自 {requester} 的點播".format(requester=entry.meta['author'].name),
                 icon_url = player.current_entry.meta['author'].avatar_url
@@ -1072,6 +1073,61 @@ class MusicBot(discord.Client):
                 traceback.print_exc()
 
         return Response(embed=reply_embed, delete_after=30)
+    
+    @owner_only
+    async def cmd_lopl(self, player, channel, author, permissions, leftover_args, song_url):
+        """
+        Usage:
+            {commans_prefix}lopl <local music file path>
+
+            Play a music file from local.
+        """
+        for left in leftover_args:
+            song_url += ' '
+            song_url += left
+        try:
+            entry, position = await player.playlist.add_entry(song_url, local=True, channel=channel, author=author)
+        except Exception as e:
+            raise exceptions.CommandError(e, expire_in=30)
+        reply_embed = discord.Embed()
+        reply_embed.set_author(
+            name = "加入播放佇列",
+            icon_url = author.avatar_url
+        )
+        reply_embed.add_field(
+            name = "曲名",
+            value = entry.title,
+            inline = False
+        )
+        if entry.thumbnail_url:
+            reply_embed.set_thumbnail(url = entry.thumbnail_url)
+        song_duration = str(timedelta(seconds=entry.duration)).lstrip('0').lstrip(':')
+        reply_embed.add_field(
+            name = "歌曲長度",
+            value = song_duration
+        )
+
+        if position == 1 and player.is_stopped:
+            reply_embed.add_field(
+                name = "位置",
+                value = "馬上！"
+            )
+
+        else:
+            reply_embed.add_field(
+                name = "位置",
+                value = str(position)
+            )
+            try:
+                time_until = await player.playlist.estimate_time_until(position, player)
+                reply_embed.add_field(
+                    name = "預估播放時間",
+                    value = time_until
+                )
+            except:
+                traceback.print_exc()
+
+        return Response(embed=reply_embed, delete_after=30)
 
     async def _cmd_play_playlist_async(self, player, channel, author, permissions, playlist_url, extractor_type):
         """
@@ -1337,10 +1393,11 @@ class MusicBot(discord.Client):
             )
             np_embed.set_author(
                 name = "現正播放♪",
-                url = player.current_entry.url,
+                url = player.current_entry.url if not player.current_entry.local else discord.Embed.Empty,
                 icon_url = self.user.avatar_url
             )
-            np_embed.set_thumbnail(url=player.current_entry.thumbnail_url)
+            if player.current_entry.thumbnail_url:
+                np_embed.set_thumbnail(url=player.current_entry.thumbnail_url)
             if player.current_entry.meta.get('channel', False) and player.current_entry.meta.get('author', False):
                 np_embed.set_footer(
                     text = "來自 {requester} 的點播".format(requester = player.current_entry.meta['author'].name),
