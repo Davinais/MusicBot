@@ -1673,6 +1673,42 @@ class MusicBot(discord.Client):
         return Response(self.str.get('cmd-play-playlist-reply-secs', "Enqueued {0} songs to be played in {1} seconds").format(
             songs_added, fixg(ttime, 1)), delete_after=30)
 
+    @owner_only
+    async def cmd_lopl(self, player, channel, author, permissions, leftover_args, song_url):
+        """
+        Usage:
+            {commans_prefix}lopl <local music file path>
+
+        Adds the song from local music file to the playlist.
+        """
+        for left in leftover_args:
+            song_url += ' '
+            song_url += left
+        
+        try:
+            entry, position = await player.playlist.add_entry(song_url, local=True, channel=channel, author=author)
+        except Exception as e:
+            raise exceptions.CommandError(e, expire_in=30)
+
+        reply_text = self.str.get('cmd-play-song-reply', "Enqueued `%s` to be played. Position in queue: %s")
+        btext = entry.title
+
+        if position == 1 and player.is_stopped:
+            position = self.str.get('cmd-play-next', 'Up next!')
+            reply_text %= (btext, position)
+        else:
+            try:
+                time_until = await player.playlist.estimate_time_until(position, player)
+                reply_text += self.str.get('cmd-play-eta', ' - estimated time until playing: %s')
+            except:
+                traceback.print_exc()
+                time_until = ''
+
+            reply_text %= (btext, position, ftimedelta(time_until))
+        
+        return Response(reply_text, delete_after=30)
+
+
     async def cmd_stream(self, player, channel, author, permissions, song_url):
         """
         Usage:

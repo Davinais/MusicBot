@@ -81,7 +81,7 @@ class BasePlaylistEntry(Serializable):
 
 
 class URLPlaylistEntry(BasePlaylistEntry):
-    def __init__(self, playlist, url, title, duration=0, expected_filename=None, **meta):
+    def __init__(self, playlist, url, title, duration=0, expected_filename=None, local=False, **meta):
         super().__init__()
 
         self.playlist = playlist
@@ -89,6 +89,7 @@ class URLPlaylistEntry(BasePlaylistEntry):
         self.title = title
         self.duration = duration
         self.expected_filename = expected_filename
+        self.local = local
         self.meta = meta
         self.aoptions = '-vn'
 
@@ -104,6 +105,7 @@ class URLPlaylistEntry(BasePlaylistEntry):
             'expected_filename': self.expected_filename,
             'filename': self.filename,
             'full_filename': os.path.abspath(self.filename) if self.filename else self.filename,
+            'local': self.local,
             'meta': {
                 name: {
                     'type': obj.__class__.__name__,
@@ -126,6 +128,7 @@ class URLPlaylistEntry(BasePlaylistEntry):
             downloaded = data['downloaded'] if playlist.bot.config.save_videos else False
             filename = data['filename'] if downloaded else None
             expected_filename = data['expected_filename']
+            local = data['local']
             meta = {}
 
             # TODO: Better [name] fallbacks
@@ -151,6 +154,14 @@ class URLPlaylistEntry(BasePlaylistEntry):
 
     # noinspection PyTypeChecker
     async def _download(self):
+        if self.local:
+            self.filename = self.expected_filename
+            if os.path.exists(self.url):
+                log.info("Found local file: {}".format(self.url))
+            else:
+                log.error('Cannot find local file: {}'.format(self.url))
+            return
+        
         if self._is_downloading:
             return
 
@@ -289,6 +300,9 @@ class URLPlaylistEntry(BasePlaylistEntry):
 
     # noinspection PyShadowingBuiltins
     async def _really_download(self, *, hash=False):
+        if self.local:
+            return
+        
         log.info("Download started: {}".format(self.url))
 
         retry = True

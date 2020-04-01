@@ -1,6 +1,8 @@
 import os.path
 import logging
 import datetime
+import traceback
+import subprocess
 
 from random import shuffle
 from itertools import islice
@@ -17,6 +19,18 @@ from .exceptions import ExtractionError, WrongEntryTypeError
 
 log = logging.getLogger(__name__)
 
+async def local_info(url):
+    getinfo = subprocess.Popen(
+        "ffprobe -i '{0}' -show_entries format=duration -show_entries format_tags=title -v quiet -of csv='p=0'".format(url), 
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        shell=True
+    )
+    ot_result = getinfo.communicate()
+    info = ot_result[0].decode('utf-8').rstrip().split(',', 1)
+    if len(info) == 1:
+        info.append(os.path.basename(url))
+    return info
 
 class Playlist(EventEmitter, Serializable):
     """
@@ -55,7 +69,7 @@ class Playlist(EventEmitter, Serializable):
         return entry
 
 
-    async def add_entry(self, song_url, **meta):
+    async def add_entry(self, song_url, local=False, **meta):
         """
             Validates and adds a song_url to be played. This does not start the download of the song.
 
@@ -65,53 +79,68 @@ class Playlist(EventEmitter, Serializable):
             :param meta: Any additional metadata to add to the playlist entry.
         """
 
-        try:
-            info = await self.downloader.extract_info(self.loop, song_url, download=False)
-        except Exception as e:
-            raise ExtractionError('Could not extract information from {}\n\n{}'.format(song_url, e))
-
-        if not info:
-            raise ExtractionError('Could not extract information from %s' % song_url)
-
-        # TODO: Sort out what happens next when this happens
-        if info.get('_type', None) == 'playlist':
-            raise WrongEntryTypeError("This is a playlist.", True, info.get('webpage_url', None) or info.get('url', None))
-
-        if info.get('is_live', False):
-            return await self.add_stream_entry(song_url, info=info, **meta)
-
-        # TODO: Extract this to its own function
-        if info['extractor'] in ['generic', 'Dropbox']:
-            log.debug('Detected a generic extractor, or Dropbox')
+        if not local:
             try:
-                headers = await get_header(self.bot.aiosession, info['url'])
-                content_type = headers.get('CONTENT-TYPE')
-                log.debug("Got content type {}".format(content_type))
+                info = await self.downloader.extract_info(self.loop, song_url, download=False)
             except Exception as e:
-                log.warning("Failed to get content type for url {} ({})".format(song_url, e))
-                content_type = None
+                raise ExtractionError('Could not extract information from {}\n\n{}'.format(song_url, e))
 
-            if content_type:
-                if content_type.startswith(('application/', 'image/')):
-                    if not any(x in content_type for x in ('/ogg', '/octet-stream')):
-                        # How does a server say `application/ogg` what the actual fuck
-                        raise ExtractionError("Invalid content type \"%s\" for url %s" % (content_type, song_url))
+            if not info:
+                raise ExtractionError('Could not extract information from %s' % song_url)
 
-                elif content_type.startswith('text/html') and info['extractor'] == 'generic':
-                    log.warning("Got text/html for content-type, this might be a stream.")
-                    return await self.add_stream_entry(song_url, info=info, **meta)  # TODO: Check for shoutcast/icecast
+            # TODO: Sort out what happens next when this happens
+            if info.get('_type', None) == 'playlist':
+                raise WrongEntryTypeError("This is a playlist.", True, info.get('webpage_url', None) or info.get('url', None))
 
-                elif not content_type.startswith(('audio/', 'video/')):
-                    log.warning("Questionable content-type \"{}\" for url {}".format(content_type, song_url))
+            if info.get('is_live', False):
+                return await self.add_stream_entry(song_url, info=info, **meta)
 
-        entry = URLPlaylistEntry(
-            self,
-            song_url,
-            info.get('title', 'Untitled'),
-            info.get('duration', 0) or 0,
-            self.downloader.ytdl.prepare_filename(info),
-            **meta
-        )
+            # TODO: Extract this to its own function
+            if info['extractor'] in ['generic', 'Dropbox']:
+                log.debug('Detected a generic extractor, or Dropbox')
+                try:
+                    headers = await get_header(self.bot.aiosession, info['url'])
+                    content_type = headers.get('CONTENT-TYPE')
+                    log.debug("Got content type {}".format(content_type))
+                except Exception as e:
+                    log.warning("Failed to get content type for url {} ({})".format(song_url, e))
+                    content_type = None
+
+                if content_type:
+                    if content_type.startswith(('application/', 'image/')):
+                        if not any(x in content_type for x in ('/ogg', '/octet-stream')):
+                            # How does a server say `application/ogg` what the actual fuck
+                            raise ExtractionError("Invalid content type \"%s\" for url %s" % (content_type, song_url))
+
+                    elif content_type.startswith('text/html') and info['extractor'] == 'generic':
+                        log.warning("Got text/html for content-type, this might be a stream.")
+                        return await self.add_stream_entry(song_url, info=info, **meta)  # TODO: Check for shoutcast/icecast
+
+                    elif not content_type.startswith(('audio/', 'video/')):
+                        log.warning("Questionable content-type \"{}\" for url {}".format(content_type, song_url))
+
+            entry = URLPlaylistEntry(
+                self,
+                song_url,
+                info.get('title', 'Untitled'),
+                info.get('duration', 0) or 0,
+                self.downloader.ytdl.prepare_filename(info),
+                local,
+                **meta
+            )
+        
+        else:
+            info = await local_info(song_url)
+            entry = URLPlaylistEntry(
+                self,
+                song_url,
+                info[1],
+                round(float(info[0])),
+                song_url.strip("'\""),
+                local,
+                **meta
+            )
+        
         self._add_entry(entry)
         return entry, len(self.entries)
 
